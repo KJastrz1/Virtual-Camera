@@ -50,7 +50,8 @@ all_polygons = []
 all_points = objectA.points + objectB.points + objectC.points
 all_polygons = objectA.polygons + objectB.polygons + objectC.polygons
 
-camera = Camera(np.array([3.5, 1, -4, 1]))
+camera = Camera(np.array([1, 1, -4, 1]))
+
 scene = Object3D(all_points, all_polygons, camera=camera, screen=screen)
 
 running = True

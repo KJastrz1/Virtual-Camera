@@ -13,11 +13,11 @@ from projection import *
 def classify_vertex(vertex, plane_normal, plane_d):
     distance = np.dot(vertex[:3], plane_normal) + plane_d
     if np.isclose(distance, 0, atol=1e-6):
-        return 0  # On the plane
+        return 0
     elif distance < 0:
-        return -1  # Behind the plane
+        return -1
     else:
-        return 1  # In front of the plane
+        return 1
 
 
 def intersect_point(p1, p2, plane_normal, plane_d):
@@ -32,18 +32,16 @@ def classify_polygon(polygon, plane_normal, plane_d):
     back = []
     points = polygon.points
 
-    # Classify each vertex
     vertex_class = [
         classify_vertex(pt.position, plane_normal, plane_d) for pt in points
     ]
 
-    # If all points are on one side
     if all(v >= 0 for v in vertex_class):
         front.append(polygon)
     elif all(v <= 0 for v in vertex_class):
         back.append(polygon)
     else:
-        # Split polygon
+
         print("Splitting polygon")
         front_points = []
         back_points = []
@@ -60,15 +58,14 @@ def classify_polygon(polygon, plane_normal, plane_d):
             if current_class <= 0:
                 back_points.append(current_point)
 
-            if current_class * next_class < 0:  # Different sides, add intersection
+            if current_class * next_class < 0:
                 intersect = intersect_point(
                     current_point.position, next_point.position, plane_normal, plane_d
                 )
-                inter_point = Point(intersect)  # Assuming Point can take a numpy array
+                inter_point = Point(intersect)
                 front_points.append(inter_point)
                 back_points.append(inter_point)
 
-        # Ensure there are at least three distinct points in each polygon
         if len(set((pt.position[0], pt.position[1]) for pt in front_points)) >= 3:
             front.append(Polygon(front_points, polygon.color))
         if len(set((pt.position[0], pt.position[1]) for pt in back_points)) >= 3:
@@ -90,7 +87,6 @@ def build_bsp_tree(polygons):
     )
 
     for poly in polygons:
-        # Określ położenie poligonu względem płaszczyzny
         front, back = classify_polygon(poly, plane_normal, plane_d)
         front_polygons.extend(front)
         back_polygons.extend(back)
@@ -113,7 +109,7 @@ class Object3D:
         self.polygons = polygons
         self.camera = camera
         self.screen = screen
-        self.tree_head: BSPNode = None     
+        self.tree_head: BSPNode = None
 
     def render_bsp_tree(self, node: BSPNode):
         if node is None:
@@ -123,23 +119,31 @@ class Object3D:
 
         if camera_side < 0:
             self.render_bsp_tree(node.front)
-            points_to_draw = [point.projected_position for point in node.polygon.points]
-            pg.draw.polygon(
-                self.screen,
-                node.polygon.color,
-                points_to_draw
-            )
-            # print("drawing polygon", node.polygon.color)
+            points_to_draw = [
+                point.projected_position
+                for point in node.polygon.points
+                if point.visible
+            ]
+            for point in points_to_draw:
+                if point[0] > 99999 or point[1] > 99999:
+                    points_to_draw = []
+                    break
+            if len(points_to_draw) > 2:
+                pg.draw.polygon(self.screen, node.polygon.color, points_to_draw)
             self.render_bsp_tree(node.back)
         else:
             self.render_bsp_tree(node.back)
-            points_to_draw = [point.projected_position for point in node.polygon.points]
-            pg.draw.polygon(
-                self.screen,
-                node.polygon.color,
-                points_to_draw
-            )
-            # print("drawing polygon", node.polygon.color)
+            points_to_draw = [
+                point.projected_position
+                for point in node.polygon.points
+                if point.visible
+            ]
+            for point in points_to_draw:
+                if point[0] > 99999 or point[1] > 99999:
+                    points_to_draw = []
+                    break
+            if len(points_to_draw) > 2:
+                pg.draw.polygon(self.screen, node.polygon.color, points_to_draw)
             self.render_bsp_tree(node.front)
 
     def print_tree(self, node: BSPNode):
@@ -152,16 +156,28 @@ class Object3D:
     def draw(self):
         if self.tree_head == None:
             self.tree_head = build_bsp_tree(self.polygons)
-        # return
-        # print("DRAWING")
-        
+
         for point in self.points:
-            point.projected_position=np.dot(point.position, self.camera.view_matrix())       
-   
-            point.projected_position=np.dot(point.projected_position, projection_matrix(self.camera))            
-            point.projected_position=point.projected_position / point.projected_position[3]
-            point.projected_position=np.dot(point.projected_position, to_screen_matrix(SCREEN_WIDTH, SCREEN_HEIGHT))[:2]
-         
+            point.visible = True
+            point.projected_position = np.dot(point.position, self.camera.view_matrix())
+            if point.projected_position[2] < 0:
+                point.visible = False
+                continue
+            point.projected_position = np.dot(
+                point.projected_position, projection_matrix(self.camera)
+            )
+            point.projected_position = (
+                point.projected_position / point.projected_position[3]
+            )      
+
+            for i in range(2):
+                if point.projected_position[i] > 3 or point.projected_position[i] < -3:
+                    point.projected_position[i] = 99999
+
+            point.projected_position = np.dot(
+                point.projected_position, to_screen_matrix(SCREEN_WIDTH, SCREEN_HEIGHT)
+            )[:2]
+
         self.render_bsp_tree(self.tree_head)
 
     def translate(self, vector):
