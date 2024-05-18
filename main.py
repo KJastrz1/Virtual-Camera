@@ -4,7 +4,7 @@ from config import *
 from Object3D import *
 import copy
 
-       
+
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
@@ -36,72 +36,34 @@ for indices, color in polygons_definitions:
     polygonsA.append(Polygon([pointsA[i] for i in indices], color))
 
 objectA = Object3D(pointsA, polygonsA)
-objectA.translate(np.array([2, 0, 10]))
+objectA.translate(np.array([2, 0, 0]))
 
 objectB = copy.deepcopy(objectA)
-objectB.translate(np.array([0, 0, 12]))
+objectB.translate(np.array([0, 0, 2]))
 objectB.scale(0.5, 1, 0.5)
 
 objectC = copy.deepcopy(objectA)
-objectC.translate(np.array([0, 1, 10]))
 objectC.scale(0.5, 0.5, 0.5)
 
-all_points = [] 
+all_points = []
 all_polygons = []
 all_points = objectA.points + objectB.points + objectC.points
 all_polygons = objectA.polygons + objectB.polygons + objectC.polygons
-scene=Object3D(all_points, all_polygons)
+
+camera = Camera(np.array([3.5, 1, -4, 1]))
+scene = Object3D(all_points, all_polygons, camera=camera, screen=screen)
 
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == pygame.KEYDOWN:
-            key = pg.key.get_pressed()
-            shift_pressed = key[pg.K_LSHIFT] or key[pg.K_RSHIFT]
-
-            if shift_pressed:
-                # Rotations with Shift
-                if key[pg.K_a]:
-                    scene.rotate_y(rotation_speed)
-                if key[pg.K_d]:
-                    scene.rotate_y(-rotation_speed)
-                if key[pg.K_w]:
-                    scene.rotate_x(rotation_speed)
-                if key[pg.K_s]:
-                    scene.rotate_x(-rotation_speed)
-                if key[pg.K_q]:
-                    scene.rotate_z(-rotation_speed)
-                if key[pg.K_e]:
-                    scene.rotate_z(rotation_speed)
-            else:
-                if key[pg.K_q]:
-                    scene.rotate_z(rotation_speed)
-                if key[pg.K_e]:
-                    scene.rotate_z(-rotation_speed)
-                # Movement without Shift
-                if key[pg.K_a]:
-                    scene.translate(np.array([1, 0, 0]) * move_speed)
-                if key[pg.K_d]:
-                    scene.translate(np.array([-1, 0, 0]) * move_speed)
-                if key[pg.K_w]:
-                    scene.translate(np.array([0, 1, 0]) * move_speed)
-                if key[pg.K_s]:
-                    scene.translate(np.array([0, -1, 0]) * move_speed)
-                if key[pg.K_UP]:
-                    scene.translate(np.array([0, 0, -1]) * move_speed)
-                if key[pg.K_DOWN]:
-                    scene.translate(np.array([0, 0, 1]) * move_speed)
-                if key[pg.K_z]:
-                    scene.zoom(-zoom_speed)
-                if key[pg.K_x]:
-                    scene.zoom(zoom_speed)
-
+        elif event.type == pygame.KEYDOWN:  
+            camera.control(event)      
 
     screen.fill(pg.Color("darkslategray"))
 
-    scene.draw(screen)
+    scene.draw()
     pygame.display.flip()
 
 pygame.quit()

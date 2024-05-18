@@ -5,124 +5,164 @@ from config import *
 from point import *
 from polygon import *
 from typing import List
-from functools import cmp_to_key
+from bsp_node import *
+from camera import *
+from projection import *
 
 
-def compute_centroid(points: List[Point]):
-    sum_x = sum(point.position[0] for point in points)
-    sum_y = sum(point.position[1] for point in points)
-    sum_z = sum(point.position[2] for point in points)
-    num_points = len(points)
-    return np.array([sum_x / num_points, sum_y / num_points, sum_z / num_points])
+def classify_vertex(vertex, plane_normal, plane_d):
+    distance = np.dot(vertex[:3], plane_normal) + plane_d
+    if np.isclose(distance, 0, atol=1e-6):
+        return 0  # On the plane
+    elif distance < 0:
+        return -1  # Behind the plane
+    else:
+        return 1  # In front of the plane
 
 
-def normal_vector(point1: Point, point2: Point, point3: Point):
-    v1 = np.array(point2.position[:3]) - np.array(point1.position[:3])
-    v2 = np.array(point3.position[:3]) - np.array(point1.position[:3])
-    normal = np.cross(v1, v2)
-    return normal / np.linalg.norm(normal)
+def intersect_point(p1, p2, plane_normal, plane_d):
+    d1 = np.dot(p1, plane_normal) + plane_d
+    d2 = np.dot(p2, plane_normal) + plane_d
+    t = -d1 / (d2 - d1)
+    return p1 + t * (p2 - p1)
 
 
-def plane_equation(point1: Point, point2: Point, point3: Point):
-    normal = normal_vector(point1, point2, point3)
-    D = -np.dot(normal, np.array(point1.position[:3]))
-    return normal, D
+def classify_polygon(polygon, plane_normal, plane_d):
+    front = []
+    back = []
+    points = polygon.points
+
+    # Classify each vertex
+    vertex_class = [
+        classify_vertex(pt.position, plane_normal, plane_d) for pt in points
+    ]
+
+    # If all points are on one side
+    if all(v >= 0 for v in vertex_class):
+        front.append(polygon)
+    elif all(v <= 0 for v in vertex_class):
+        back.append(polygon)
+    else:
+        # Split polygon
+        print("Splitting polygon")
+        front_points = []
+        back_points = []
+        num_vertices = len(points)
+
+        for i in range(num_vertices):
+            current_point = points[i]
+            next_point = points[(i + 1) % num_vertices]
+            current_class = vertex_class[i]
+            next_class = vertex_class[(i + 1) % num_vertices]
+
+            if current_class >= 0:
+                front_points.append(current_point)
+            if current_class <= 0:
+                back_points.append(current_point)
+
+            if current_class * next_class < 0:  # Different sides, add intersection
+                intersect = intersect_point(
+                    current_point.position, next_point.position, plane_normal, plane_d
+                )
+                inter_point = Point(intersect)  # Assuming Point can take a numpy array
+                front_points.append(inter_point)
+                back_points.append(inter_point)
+
+        # Ensure there are at least three distinct points in each polygon
+        if len(set((pt.position[0], pt.position[1]) for pt in front_points)) >= 3:
+            front.append(Polygon(front_points, polygon.color))
+        if len(set((pt.position[0], pt.position[1]) for pt in back_points)) >= 3:
+            back.append(Polygon(back_points, polygon.color))
+
+    return front, back
 
 
-def all_vertices_one_side(points: List[Point], normal, D):
-    equation_val = [np.dot(normal, point.position[:3]) + D for point in points]
-    camera_val = D
-    for val in equation_val:
-        if np.sign(val) != np.sign(camera_val):
-            if abs(val) < 10**-8:
-                continue
-            else:
-                return False
-    return True
+def build_bsp_tree(polygons):
+    if not polygons:
+        return None
 
+    node = BSPNode(polygons.pop(0))
+    front_polygons = []
+    back_polygons = []
 
-def all_vertices_opposite_side(points: List[Point], normal, D):
-    equation_val = [np.dot(normal, point.position[:3]) + D for point in points]
-    camera_val = D
-    for val in equation_val:
-        if np.sign(val) == np.sign(camera_val):
-            if abs(val) <10**-8:
-                continue
-            else:
-                return False
-    return True
+    plane_normal, plane_d = plane_equation(
+        node.polygon.points[0], node.polygon.points[1], node.polygon.points[2]
+    )
+
+    for poly in polygons:
+        # Określ położenie poligonu względem płaszczyzny
+        front, back = classify_polygon(poly, plane_normal, plane_d)
+        front_polygons.extend(front)
+        back_polygons.extend(back)
+
+    node.front = build_bsp_tree(front_polygons)
+    node.back = build_bsp_tree(back_polygons)
+
+    return node
 
 
 class Object3D:
-    def __init__(self, points: List[Point], polygons: List[Polygon]):
+    def __init__(
+        self,
+        points: List[Point],
+        polygons: List[Polygon],
+        camera: Camera = None,
+        screen=None,
+    ):
         self.points = points
         self.polygons = polygons
-        self.camera_distance = 1000
+        self.camera = camera
+        self.screen = screen
+        self.tree_head: BSPNode = None     
 
-    def compare_polygons(
-        self, poly1: Polygon, poly2: Polygon, points: List[Point]
-    ):
-        vertices1 = [point for point in poly1.points]
-        vertices2 = [point for point in poly2.points]
+    def render_bsp_tree(self, node: BSPNode):
+        if node is None:
+            return
 
-        centroid1 = compute_centroid(vertices1)
-        centroid2 = compute_centroid(vertices2)
+        camera_side = np.dot(self.camera.position[:3], node.normal) + node.D
 
-        normal2, D2 = plane_equation(vertices2[0], vertices2[1], vertices2[2])
-        normal1, D1 = plane_equation(vertices1[0], vertices1[1], vertices1[2])
-
-        all_on_camera_side1 = all_vertices_one_side(vertices1, normal2, D2)
-        all_on_camera_side2 = all_vertices_one_side(vertices2, normal1, D1)
-
-        all_on_opposite_side1 = all_vertices_opposite_side(vertices1, normal2, D2)
-        all_on_opposite_side2 = all_vertices_opposite_side(vertices2, normal1, D1)
-
-        distance1 = centroid1[2]
-        distance2 = centroid2[2]
-        # if all_on_camera_side1 and all_on_opposite_side2:
-        #     return -1
-        # elif all_on_camera_side2 and all_on_opposite_side1 :
-        #     return 1
-        
-
-        # if distance1 < distance2:
-        #     return -1
-        # elif distance1 > distance2:
-        #     return 1
-        # else:
-        distance1 = np.sqrt(np.sum(centroid1**2))
-        distance2 = np.sqrt(np.sum(centroid2**2))
-        if distance1 < distance2:
-            return -1
-        elif distance1 > distance2:
-            return 1
-        else:
-            return 0
-
-    def sort_polygons(self, points: List[Point]):
-        sorted_polygons = sorted(
-            self.polygons,
-            key=cmp_to_key(
-                lambda p1, p2: self.compare_polygons(p1, p2, points)
-            ),
-            reverse=True,
-        )
-        return sorted_polygons
-
-    def draw(self, screen):
-        projected_points = {
-            point: point.project_point(self.camera_distance) for point in self.points
-        }
-        sorted_polygons = self.sort_polygons(self.points)
-
-        for polygon in sorted_polygons:
-            points_to_draw = [projected_points[point].position for point in polygon.points]
-            points_to_draw = [(point[0], point[1]) for point in points_to_draw]
+        if camera_side < 0:
+            self.render_bsp_tree(node.front)
+            points_to_draw = [point.projected_position for point in node.polygon.points]
             pg.draw.polygon(
-                screen,
-                polygon.color,
-                points_to_draw,
+                self.screen,
+                node.polygon.color,
+                points_to_draw
             )
+            # print("drawing polygon", node.polygon.color)
+            self.render_bsp_tree(node.back)
+        else:
+            self.render_bsp_tree(node.back)
+            points_to_draw = [point.projected_position for point in node.polygon.points]
+            pg.draw.polygon(
+                self.screen,
+                node.polygon.color,
+                points_to_draw
+            )
+            # print("drawing polygon", node.polygon.color)
+            self.render_bsp_tree(node.front)
+
+    def print_tree(self, node: BSPNode):
+        if node is None:
+            return
+        self.print_tree(node.back)
+        print(node.polygon.points)
+        self.print_tree(node.front)
+
+    def draw(self):
+        if self.tree_head == None:
+            self.tree_head = build_bsp_tree(self.polygons)
+        # return
+        # print("DRAWING")
+        
+        for point in self.points:
+            point.projected_position=np.dot(point.position, self.camera.view_matrix())       
+   
+            point.projected_position=np.dot(point.projected_position, projection_matrix(self.camera))            
+            point.projected_position=point.projected_position / point.projected_position[3]
+            point.projected_position=np.dot(point.projected_position, to_screen_matrix(SCREEN_WIDTH, SCREEN_HEIGHT))[:2]
+         
+        self.render_bsp_tree(self.tree_head)
 
     def translate(self, vector):
         matrix = translation_matrix(vector)
