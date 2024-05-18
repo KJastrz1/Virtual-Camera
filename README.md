@@ -12,10 +12,10 @@ To interact with the virtual camera, use the following keyboard controls:
   - `A`/`D` - Move camera left/right
   - `ARROW UP`/`ARROW DOWN` - Move camera forward/backward
 
-- **Rotation**
+- **Rotations (with `SHIFT`)**
   - `Q`/`E` - Rotate camera left/right
-  - `W`/`S` (with `SHIFT`) - Rotate camera up/down
-  - `A`/`D` (with `SHIFT`) - Roll camera left/right
+  - `W`/`S` - Rotate camera up/down
+  - `A`/`D` - Roll camera left/right
 - **Zoom**
   - `Z`/`X` - Zoom in/out
   
