@@ -73,14 +73,12 @@ class Camera:
         self.right = np.array([1, 0, 0, 1])
 
     def camera_update_axis(self):        
-        if self.angles_changed:    
-            print("update axis")       
+        if self.angles_changed:                 
             rotate_matrix = np.dot(
                 rotation_x_matrix(self.angleX), rotation_z_matrix(self.angleZ)
             )
             rotate_matrix = np.dot(rotate_matrix, rotation_y_matrix(self.angleY))
-            self.forward = np.dot(np.array([0, 0, 1, 1]), rotate_matrix)
-            print(self.forward)
+            self.forward = np.dot(np.array([0, 0, 1, 1]), rotate_matrix)          
             self.right = np.dot(np.array([1, 0, 0, 1]), rotate_matrix)
             self.up = np.dot(np.array([0, 1, 0, 1]), rotate_matrix)
             self.angles_changed = False
