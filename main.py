@@ -35,7 +35,6 @@ polygonsA = []
 for indices, color in polygons_definitions:
     polygonsA.append(Polygon([pointsA[i] for i in indices], COLORS[polygons_definitions.index((indices, color))]))
 objectA = Object3D(pointsA, polygonsA)
-objectA.translate(np.array([2, 0, 0]))
 
 pointsB=copy.deepcopy(pointsA)
 polygonsB = []
@@ -43,8 +42,6 @@ for indices, color in polygons_definitions:
     color_index = (polygons_definitions.index((indices, color)) + 1) % len(COLORS) 
     polygonsB.append(Polygon([pointsB[i] for i in indices], COLORS[color_index]))
 objectB = Object3D(pointsB, polygonsB)
-objectB.translate(np.array([0, 0, 2]))
-objectB.scale(0.5, 1, 0.5)
 
 pointsC=copy.deepcopy(pointsA)
 polygonsC = []
@@ -52,6 +49,12 @@ for indices, color in polygons_definitions:
     color_index = (polygons_definitions.index((indices, color)) + 4) % len(COLORS)  
     polygonsC.append(Polygon([pointsC[i] for i in indices], COLORS[color_index]))
 objectC = Object3D(pointsC, polygonsC)
+
+objectA.translate(np.array([1, 0, 0]))
+
+objectB.scale(0.5, 1, 0.5)
+objectB.translate(np.array([0, 0, 1]))
+
 objectC.scale(0.5, 0.5, 0.5)
 
 all_points = []
