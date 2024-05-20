@@ -41,7 +41,6 @@ def classify_polygon(polygon, plane_normal, plane_d):
     elif all(v <= 0 for v in vertex_class):
         back.append(polygon)
     else:
-
         print("Splitting polygon")
         front_points = []
         back_points = []
@@ -114,9 +113,8 @@ class Object3D:
     def render_bsp_tree(self, node: BSPNode):
         if node is None:
             return
-
+        
         camera_side = np.dot(self.camera.position[:3], node.normal) + node.D
-
         if camera_side < 0:
             self.render_bsp_tree(node.front)
             points_to_draw = [
@@ -124,10 +122,6 @@ class Object3D:
                 for point in node.polygon.points
                 if point.visible
             ]
-            for point in points_to_draw:
-                if point[0] > 99999 or point[1] > 99999:
-                    points_to_draw = []
-                    break
             if len(points_to_draw) > 2:
                 pg.draw.polygon(self.screen, node.polygon.color, points_to_draw)
             self.render_bsp_tree(node.back)
@@ -137,11 +131,7 @@ class Object3D:
                 point.projected_position
                 for point in node.polygon.points
                 if point.visible
-            ]
-            for point in points_to_draw:
-                if point[0] > 99999 or point[1] > 99999:
-                    points_to_draw = []
-                    break
+            ]  
             if len(points_to_draw) > 2:
                 pg.draw.polygon(self.screen, node.polygon.color, points_to_draw)
             self.render_bsp_tree(node.front)
@@ -172,7 +162,7 @@ class Object3D:
 
             for i in range(2):
                 if point.projected_position[i] > 3 or point.projected_position[i] < -3:
-                    point.projected_position[i] = 99999
+                    point.visible = False
 
             point.projected_position = np.dot(
                 point.projected_position, to_screen_matrix(SCREEN_WIDTH, SCREEN_HEIGHT)
